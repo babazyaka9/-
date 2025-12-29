@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
     - name: Setup Java
       uses: actions/setup-java@v3
@@ -23,8 +24,13 @@ jobs:
       with:
         channel: 'stable'
 
-    - name: Get dependencies
-      run: flutter pub get
+    # --- ЛІКУВАННЯ ---
+    # Ця команда створить всі відсутні системні папки (android, gradle)
+    # навколо вашого коду main.dart
+    - name: Repair Project Structure
+      run: |
+        flutter create . --project-name anatomy_quiz --org com.anatomy
+        flutter pub get
 
     - name: Build APK
       run: flutter build apk --release
