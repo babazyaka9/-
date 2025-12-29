@@ -251,4 +251,151 @@ def main(page: ft.Page):
 
     show_menu()
 
+ft.app(main)
+
+    def start_quiz(mode, start=0, end=0, key=None):
+        page.clean()
+        
+        if mode == "chunk":
+            quiz_questions = QUESTIONS[start:end]
+        else: 
+            wrong_ids = user_progress["wrong_indices"]
+            quiz_questions = [q for q in QUESTIONS if q['id'] in wrong_ids]
+        
+        if not quiz_questions:
+            page.add(ft.Text("Помилок немає! 🎉", size=20))
+            page.add(ft.ElevatedButton("Назад в меню", on_click=show_menu))
+            page.update()
+            return
+
+        state = {
+            "idx": 0,
+            "score": 0,
+            "correct_ids": [],
+            "new_wrongs": []
+        }
+
+        txt_progress = ft.Text(size=14, color="grey")
+        txt_question = ft.Text(size=18, weight="bold")
+        opts_column = ft.Column(spacing=10)
+        btn_next = ft.ElevatedButton("Далі", visible=False, width=page.width)
+
+        def next_question(e):
+            state["idx"] += 1
+            if state["idx"] >= len(quiz_questions):
+                finish_quiz(state, key, mode, len(quiz_questions))
+            else:
+                load_q()
+
+        btn_next.on_click = next_question
+
+        def check_answer(e, selected_idx, correct_idx, q_id):
+            for ctrl in opts_column.controls:
+                ctrl.disabled = True
+            
+            is_correct = (selected_idx == correct_idx)
+            
+            e.control.bgcolor = "green" if is_correct else "red"
+            e.control.content.color = "white"
+            if not is_correct:
+                opts_column.controls[correct_idx].bgcolor = "green"
+                opts_column.controls[correct_idx].content.color = "white"
+            
+            if is_correct:
+                state["score"] += 1
+                state["correct_ids"].append(q_id)
+            else:
+                state["new_wrongs"].append(q_id)
+            
+            btn_next.visible = True
+            page.update()
+
+        def load_q():
+            q = quiz_questions[state["idx"]]
+            txt_progress.value = f"Питання {state['idx'] + 1} з {len(quiz_questions)}"
+            txt_question.value = q["q"]
+            
+            opts_column.controls.clear()
+            btn_next.visible = False
+            
+            for i, opt_text in enumerate(q["opts"]):
+                btn = ft.Container(
+                    content=ft.Text(opt_text, color="black"),
+                    padding=15,
+                    border=ft.border.all(1, "grey"),
+                    border_radius=8,
+                    on_click=lambda e, idx=i: check_answer(e, idx, q["c"], q["id"]),
+                    ink=True,
+                    bgcolor="white"
+                )
+                opts_column.controls.append(btn)
+            
+            page.update()
+
+        # ВИПРАВЛЕННЯ: Кнопка "Назад" теж замінена на Container
+        back_btn = ft.Container(
+            content=ft.Icon("arrow_back"),
+            on_click=show_menu,
+            padding=10
+        )
+
+        page.add(
+            ft.Row([
+                back_btn,
+                txt_progress
+            ]),
+            txt_question,
+            opts_column,
+            ft.Container(height=20),
+            btn_next
+        )
+        load_q()
+
+    def finish_quiz(state, key, mode, total_q):
+        current_wrongs = set(user_progress["wrong_indices"])
+        
+        for wid in state["new_wrongs"]:
+            current_wrongs.add(wid)
+        for cid in state["correct_ids"]:
+            if cid in current_wrongs:
+                current_wrongs.remove(cid)
+        
+        user_progress["wrong_indices"] = list(current_wrongs)
+        
+        if mode == "chunk":
+            percent = (state["score"] / total_q) * 100
+            user_progress["chunk_results"][key] = {
+                "score": state["score"],
+                "total": total_q,
+                "percent": percent
+            }
+        
+        save_progress(user_progress)
+        
+        page.clean()
+        percent = (state["score"] / total_q) * 100
+        color = "green" if percent >= 60 else "red"
+        icon_name = "check_circle" if percent >= 60 else "cancel"
+        
+        page.add(
+            ft.Column([
+                ft.Icon(icon_name, size=100, color=color),
+                ft.Text(f"{int(percent)}%", size=40, color=color, weight="bold"),
+                ft.Text(f"Правильно: {state['score']} з {total_q}", size=20),
+                ft.Container(height=50),
+                ft.ElevatedButton("В меню", on_click=show_menu, width=200),
+                ft.ElevatedButton("Робота над помилками", on_click=lambda _: start_quiz("review"), width=200, bgcolor="purple", color="white")
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        )
+        page.update()
+
+    def reset_app_data(e):
+        user_progress["wrong_indices"] = []
+        user_progress["chunk_results"] = {}
+        save_progress(user_progress)
+        show_menu()
+
+    show_menu()
+
 ft.run(main)
+
