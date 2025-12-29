@@ -18,11 +18,11 @@ jobs:
       with:
         python-version: '3.11'
 
+    # Встановлюємо Flet
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install flet
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
@@ -38,14 +38,17 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # РЕАЛІЗАЦІЯ ПОРАДИ:
-    # Ми перейменовуємо файл на "anatomy.py".
-    # Flet побачить це ім'я і автоматично пропише "name: anatomy" у pubspec.yaml.
-    # Це виправить помилку.
+    # ГОЛОВНИЙ МОМЕНТ:
+    # 1. Створюємо папку "anatomy" (це дасть правильне ім'я проекту).
+    # 2. Кладемо туди всі ваші файли.
+    # 3. Запускаємо збірку цієї папки.
     - name: Build APK
       run: |
-        mv main.py anatomy.py
-        flet build apk anatomy.py --product "Anatomy Test" --verbose
+        mkdir anatomy
+        mv main.py anatomy/
+        mv questions.json anatomy/
+        if [ -f requirements.txt ]; then mv requirements.txt anatomy/; fi
+        flet build apk anatomy --product "Anatomy Test" --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
