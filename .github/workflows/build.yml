@@ -38,10 +38,13 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # ВИПРАВЛЕННЯ ТУТ: Додали назву проекту
+    # ВИПРАВЛЕННЯ:
+    # 1. Прибрали помилковий прапор --project-name
+    # 2. Явно вказали файл main.py (це виправить помилку з іменем)
+    # 3. Додали --product (це назва, яка буде під іконкою на телефоні)
     - name: Build APK
       run: |
-        flet build apk --project-name anatomy_test --verbose
+        flet build apk main.py --product "Anatomy Test" --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
