@@ -38,12 +38,13 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # ВИПРАВЛЕННЯ: 
-    # Замість "main.py" ставимо крапку "." (поточна папка).
-    # Flet сам знайде всередині файл main.py
+    # ВИПРАВЛЕННЯ:
+    # 1. Використовуємо main.py
+    # 2. --module-name anatomy_app (це виправить помилку з порожнім іменем)
+    # 3. --product "Anatomy Test" (красива назва на екрані)
     - name: Build APK
       run: |
-        flet build apk . --product "Anatomy Test" --verbose
+        flet build apk main.py --module-name anatomy_app --product "Anatomy Test" --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
