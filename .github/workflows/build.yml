@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Flutter APK
 
 on:
   push:
@@ -10,23 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flet
-
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        channel: 'stable'
+    - uses: actions/checkout@v3
 
     - name: Setup Java
       uses: actions/setup-java@v3
@@ -34,19 +18,19 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+
+    - name: Get dependencies
+      run: flutter pub get
 
     - name: Build APK
-      run: |
-        mkdir anatomy
-        mv main.py anatomy/
-        mv questions.json anatomy/
-        if [ -f requirements.txt ]; then mv requirements.txt anatomy/; fi
-        flet build apk anatomy --product "Anatomy Test" --verbose
+      run: flutter build apk --release
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: anatomy-app-release
-        path: anatomy/build/apk/*.apk
+        name: anatomy-quiz-release
+        path: build/app/outputs/flutter-apk/app-release.apk
