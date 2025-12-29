@@ -33,15 +33,16 @@ def main(page: ft.Page):
 
     user_progress = load_progress()
     
-    # --- ЕКРАНИ ---
-    
+    # Оголошуємо функції заздалегідь, щоб уникнути помилок порядку
+    def start_quiz(mode, start=0, end=0, key=None):
+        pass # Тимчасова заглушка, реалізація нижче
+
     def show_menu(e=None):
         page.clean()
         
-        # Заголовок
-        # ВИПРАВЛЕННЯ: Замінили IconButton на надійний Container + Icon
+        # Кнопка скидання (безпечний контейнер)
         reset_btn = ft.Container(
-            content=ft.Icon("autorenew", color="red"),
+            content=ft.Icon(ft.icons.AUTORENEW, color="red"),
             on_click=reset_app_data,
             padding=10,
             border_radius=50,
@@ -61,7 +62,7 @@ def main(page: ft.Page):
             page.add(
                 ft.Container(
                     content=ft.Row([
-                        ft.Icon("warning", color="white"),
+                        ft.Icon(ft.icons.WARNING, color="white"),
                         ft.Text(f"Робота над помилками ({wrongs_count})", color="white", weight="bold")
                     ], alignment=ft.MainAxisAlignment.CENTER),
                     bgcolor="purple", padding=15, border_radius=10,
@@ -75,19 +76,19 @@ def main(page: ft.Page):
         tests_column = ft.Column(spacing=10)
         
         for i in range(0, total_q, CHUNK_SIZE):
-            end = min(i + CHUNK_SIZE, total_q)
-            key = f"{i}-{end}"
-            res = user_progress["chunk_results"].get(key)
+            end_val = min(i + CHUNK_SIZE, total_q)
+            key_val = f"{i}-{end_val}"
+            res = user_progress["chunk_results"].get(key_val)
             
             chunk_num = (i // CHUNK_SIZE) + 1
             
             if res:
                 percent = res['percent']
-                icon_name = "check_circle" if percent >= 60 else "cancel"
+                icon_name = ft.icons.CHECK_CIRCLE if percent >= 60 else ft.icons.CANCEL
                 color = "green100" if percent >= 60 else "red100"
                 text_info = f"{res['score']}/{res['total']} ({int(percent)}%)"
             else:
-                icon_name = "circle_outlined"
+                icon_name = ft.icons.CIRCLE_OUTLINED
                 color = "grey100"
                 text_info = "Не пройдено"
 
@@ -100,12 +101,20 @@ def main(page: ft.Page):
                     ])
                 ]),
                 bgcolor=color, padding=15, border_radius=10,
-                on_click=lambda _, s=i, e=end, k=key: start_quiz("chunk", s, e, k)
+                on_click=lambda _, s=i, e=end_val, k=key_val: start_quiz("chunk", s, e, k)
             )
             tests_column.controls.append(card)
             
         page.add(tests_column)
         page.update()
+
+    # Реалізація вікторини
+    def start_quiz(mode, start=0, end=0, key=None):
+        page.clean()
+        
+        if mode == "chunk":
+            quiz_questions = QUESTIONS[start:end]
+        else:
 
     def start_quiz(mode, start=0, end=0, key=None):
         page.clean()
@@ -398,4 +407,5 @@ ft.app(main)
     show_menu()
 
 ft.run(main)
+
 
