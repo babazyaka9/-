@@ -24,12 +24,10 @@ jobs:
         pip install flet
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    # --- НОВИЙ КРОК: Встановлюємо Flutter автоматично ---
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
-    # ----------------------------------------------------
 
     - name: Setup Java
       uses: actions/setup-java@v3
@@ -40,9 +38,10 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
+    # ВИПРАВЛЕННЯ ТУТ: Додали назву проекту
     - name: Build APK
       run: |
-        flet build apk --verbose
+        flet build apk --project-name anatomy_test --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
