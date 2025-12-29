@@ -38,13 +38,14 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    # ВИПРАВЛЕННЯ:
-    # 1. Використовуємо main.py
-    # 2. --module-name anatomy_app (це виправить помилку з порожнім іменем)
-    # 3. --product "Anatomy Test" (красива назва на екрані)
+    # РЕАЛІЗАЦІЯ ПОРАДИ:
+    # Ми перейменовуємо файл на "anatomy.py".
+    # Flet побачить це ім'я і автоматично пропише "name: anatomy" у pubspec.yaml.
+    # Це виправить помилку.
     - name: Build APK
       run: |
-        flet build apk main.py --module-name anatomy_app --product "Anatomy Test" --verbose
+        mv main.py anatomy.py
+        flet build apk anatomy.py --product "Anatomy Test" --verbose
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
