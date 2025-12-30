@@ -13,6 +13,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    # Встановлюємо бібліотеку для читання PDF
+    - name: Install PDF Library
+      run: pip install pdfplumber
+
+    # Запускаємо конвертер
+    - name: Generate Questions Database
+      run: python convert.py
+
     - name: Setup Java
       uses: actions/setup-java@v3
       with:
@@ -24,9 +37,6 @@ jobs:
       with:
         channel: 'stable'
 
-    # --- ЛІКУВАННЯ ---
-    # Ця команда створить всі відсутні системні папки (android, gradle)
-    # навколо вашого коду main.dart
     - name: Repair Project Structure
       run: |
         flutter create . --project-name anatomy_quiz --org com.anatomy
