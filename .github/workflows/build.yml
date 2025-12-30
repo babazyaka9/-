@@ -18,11 +18,9 @@ jobs:
       with:
         python-version: '3.9'
 
-    # Встановлюємо бібліотеку для читання PDF
     - name: Install PDF Library
       run: pip install pdfplumber
 
-    # Запускаємо конвертер
     - name: Generate Questions Database
       run: python convert.py
 
