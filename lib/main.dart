@@ -17,7 +17,7 @@ class AnatomyApp extends StatelessWidget {
       title: 'Анатомія',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5), // Світло-сірий фон як на сайті
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
         useMaterial3: true,
       ),
       home: const MenuScreen(),
@@ -25,7 +25,6 @@ class AnatomyApp extends StatelessWidget {
   }
 }
 
-// --- ГОЛОВНЕ МЕНЮ ---
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
 
@@ -46,20 +45,23 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Future<void> _loadData() async {
     try {
-      // Завантаження питань
       final jsonString = await rootBundle.loadString('questions.json');
       final List<dynamic> data = json.decode(jsonString);
 
-      // Завантаження прогресу
       final prefs = await SharedPreferences.getInstance();
       final savedProgress = prefs.getString('user_progress');
+      
       Map<String, dynamic> progressMap = {
         "wrong_indices": [],
-        "chunk_results": {}
+        "chunk_results": {},
+        "active_sessions": {}
       };
       
       if (savedProgress != null) {
-        progressMap = json.decode(savedProgress);
+        final decoded = json.decode(savedProgress);
+        progressMap["wrong_indices"] = decoded["wrong_indices"] ?? [];
+        progressMap["chunk_results"] = decoded["chunk_results"] ?? {};
+        progressMap["active_sessions"] = decoded["active_sessions"] ?? {};
       }
 
       if (mounted) {
@@ -70,7 +72,6 @@ class _MenuScreenState extends State<MenuScreen> {
         });
       }
     } catch (e) {
-      // Ігноруємо помилки, просто показуємо пустий екран або лоадер
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -81,6 +82,39 @@ class _MenuScreenState extends State<MenuScreen> {
     _loadData();
   }
 
+  void _handleTestTap(int start, int end, String key) {
+    final activeSession = _progress['active_sessions']?[key];
+    final isFinished = _progress['chunk_results']?[key] != null;
+
+    if (!isFinished && activeSession != null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Тест не завершено"),
+          content: Text("Ви зупинилися на питанні ${activeSession['index'] + 1}. Бажаєте продовжити?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _startQuiz(context, mode: 'chunk', start: start, end: end, key: key, resumeData: null);
+              },
+              child: const Text("Почати заново", style: TextStyle(color: Colors.red)),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _startQuiz(context, mode: 'chunk', start: start, end: end, key: key, resumeData: activeSession);
+              },
+              child: const Text("Продовжити"),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _startQuiz(context, mode: 'chunk', start: start, end: end, key: key);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -89,6 +123,7 @@ class _MenuScreenState extends State<MenuScreen> {
 
     final wrongIndices = List<int>.from(_progress['wrong_indices'] ?? []);
     final chunkResults = _progress['chunk_results'] ?? {};
+    final activeSessions = _progress['active_sessions'] ?? {};
     const chunkSize = 40;
 
     return Scaffold(
@@ -106,7 +141,6 @@ class _MenuScreenState extends State<MenuScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Кнопка помилок
           if (wrongIndices.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(bottom: 15),
@@ -124,12 +158,13 @@ class _MenuScreenState extends State<MenuScreen> {
               ),
             ),
           
-          // Список тестів
           ...List.generate((_questions.length / chunkSize).ceil(), (index) {
             final start = index * chunkSize;
             final end = (start + chunkSize) < _questions.length ? (start + chunkSize) : _questions.length;
             final key = "$start-$end";
+            
             final res = chunkResults[key];
+            final active = activeSessions[key];
             
             String status = "Не почато";
             IconData icon = Icons.circle_outlined;
@@ -148,6 +183,12 @@ class _MenuScreenState extends State<MenuScreen> {
                 iconColor = Colors.red;
                 cardColor = Colors.red.shade50;
               }
+            } else if (active != null) {
+              int done = active['index'];
+              status = "Зупинено: $done/${end - start}";
+              icon = Icons.pause_circle_filled;
+              iconColor = Colors.orange;
+              cardColor = Colors.orange.shade50;
             }
 
             return Container(
@@ -161,7 +202,7 @@ class _MenuScreenState extends State<MenuScreen> {
                 leading: Icon(icon, color: iconColor, size: 28),
                 title: Text("Тест ${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(status),
-                onTap: () => _startQuiz(context, mode: 'chunk', start: start, end: end, key: key),
+                onTap: () => _handleTestTap(start, end, key),
               ),
             );
           }),
@@ -171,7 +212,14 @@ class _MenuScreenState extends State<MenuScreen> {
     );
   }
 
-  void _startQuiz(BuildContext context, {required String mode, int? start, int? end, String? key, List<int>? wrongIds}) async {
+  void _startQuiz(BuildContext context, {
+    required String mode, 
+    int? start, 
+    int? end, 
+    String? key, 
+    List<int>? wrongIds,
+    dynamic resumeData
+  }) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -183,14 +231,14 @@ class _MenuScreenState extends State<MenuScreen> {
           chunkKey: key,
           wrongIds: wrongIds,
           currentProgress: _progress,
+          resumeData: resumeData,
         ),
       ),
     );
-    _loadData(); // Оновлюємо меню після повернення
+    _loadData();
   }
 }
 
-// --- ЕКРАН ТЕСТУ ---
 class QuizScreen extends StatefulWidget {
   final List<dynamic> allQuestions;
   final String mode;
@@ -199,6 +247,7 @@ class QuizScreen extends StatefulWidget {
   final String? chunkKey;
   final List<int>? wrongIds;
   final Map<String, dynamic> currentProgress;
+  final dynamic resumeData;
 
   const QuizScreen({
     super.key,
@@ -209,6 +258,7 @@ class QuizScreen extends StatefulWidget {
     this.chunkKey,
     this.wrongIds,
     required this.currentProgress,
+    this.resumeData,
   });
 
   @override
@@ -232,6 +282,13 @@ class _QuizScreenState extends State<QuizScreen> {
     } else {
       _quizQuestions = widget.allQuestions.where((q) => widget.wrongIds!.contains(q['id'])).toList();
     }
+
+    if (widget.resumeData != null) {
+      _currentIndex = widget.resumeData['index'] ?? 0;
+      _score = widget.resumeData['score'] ?? 0;
+      _newWrongs = List<int>.from(widget.resumeData['new_wrongs'] ?? []);
+      _correctIds = List<int>.from(widget.resumeData['correct_ids'] ?? []);
+    }
   }
 
   void _checkAnswer(int index) {
@@ -251,10 +308,16 @@ class _QuizScreenState extends State<QuizScreen> {
     });
   }
 
-  void _nextQuestion() {
-    if (_currentIndex < _quizQuestions.length - 1) {
+  Future<void> _handleNextButton() async {
+    final nextIndex = _currentIndex + 1;
+
+    if (widget.mode == 'chunk' && widget.chunkKey != null && nextIndex < _quizQuestions.length) {
+      await _saveSessionState(nextIndex);
+    }
+
+    if (nextIndex < _quizQuestions.length) {
       setState(() {
-        _currentIndex++;
+        _currentIndex = nextIndex;
         _answered = false;
         _selectedOption = null;
       });
@@ -263,34 +326,59 @@ class _QuizScreenState extends State<QuizScreen> {
     }
   }
 
-  Future<void> _finishQuiz() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // Оновлюємо помилки
-    Set<int> wrongSet = Set<int>.from(widget.currentProgress['wrong_indices'] ?? []);
-    wrongSet.addAll(_newWrongs);
-    wrongSet.removeAll(_correctIds);
-    widget.currentProgress['wrong_indices'] = wrongSet.toList();
-
-    // Оновлюємо статистику
-    if (widget.mode == 'chunk' && widget.chunkKey != null) {
-      double percent = (_score / _quizQuestions.length) * 100;
-      Map<String, dynamic> chunkRes = widget.currentProgress['chunk_results'] ?? {};
-      chunkRes[widget.chunkKey!] = {
+  Future<void> _saveSessionState(int nextIndex) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      Map<String, dynamic> activeSessions = widget.currentProgress['active_sessions'] ?? {};
+      activeSessions[widget.chunkKey!] = {
+        "index": nextIndex,
         "score": _score,
-        "total": _quizQuestions.length,
-        "percent": percent
+        "new_wrongs": _newWrongs,
+        "correct_ids": _correctIds
       };
-      widget.currentProgress['chunk_results'] = chunkRes;
+      widget.currentProgress['active_sessions'] = activeSessions;
+      await prefs.setString('user_progress', json.encode(widget.currentProgress));
+    } catch (e) {
+      print("Error: $e");
     }
+  }
 
-    await prefs.setString('user_progress', json.encode(widget.currentProgress));
+  Future<void> _finishQuiz() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      Set<int> wrongSet = Set<int>.from(widget.currentProgress['wrong_indices'] ?? []);
+      wrongSet.addAll(_newWrongs);
+      wrongSet.removeAll(_correctIds);
+      widget.currentProgress['wrong_indices'] = wrongSet.toList();
 
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => ResultScreen(score: _score, total: _quizQuestions.length)),
-    );
+      if (widget.mode == 'chunk' && widget.chunkKey != null) {
+        double percent = (_score / _quizQuestions.length) * 100;
+        
+        Map<String, dynamic> chunkRes = widget.currentProgress['chunk_results'] ?? {};
+        chunkRes[widget.chunkKey!] = {
+          "score": _score,
+          "total": _quizQuestions.length,
+          "percent": percent
+        };
+        widget.currentProgress['chunk_results'] = chunkRes;
+        
+        Map<String, dynamic> active = widget.currentProgress['active_sessions'] ?? {};
+        active.remove(widget.chunkKey!);
+        widget.currentProgress['active_sessions'] = active;
+      }
+
+      await prefs.setString('user_progress', json.encode(widget.currentProgress));
+
+      if (!mounted) return;
+      
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ResultScreen(score: _score, total: _quizQuestions.length)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Помилка збереження: $e")));
+    }
   }
 
   @override
@@ -298,8 +386,8 @@ class _QuizScreenState extends State<QuizScreen> {
     if (_quizQuestions.isEmpty) return const Scaffold(body: Center(child: Text("Помилок немає! 🎉")));
 
     final q = _quizQuestions[_currentIndex];
+    final bool isLastQuestion = _currentIndex == _quizQuestions.length - 1;
 
-    // СКРОЛЛ ВІДБУВАЄТЬСЯ ТУТ (SingleChildScrollView)
     return Scaffold(
       appBar: AppBar(
         title: Text("Питання ${_currentIndex + 1}/${_quizQuestions.length}"),
@@ -320,7 +408,6 @@ class _QuizScreenState extends State<QuizScreen> {
               Text(q['q'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.4)),
               const SizedBox(height: 30),
               
-              // Варіанти відповідей
               ...List.generate(q['opts'].length, (index) {
                 Color bgColor = Colors.white;
                 Color textColor = Colors.black87;
@@ -328,11 +415,11 @@ class _QuizScreenState extends State<QuizScreen> {
 
                 if (_answered) {
                   if (index == q['c']) {
-                    bgColor = Colors.green.shade500; // Правильна - зелена
+                    bgColor = Colors.green.shade500;
                     textColor = Colors.white;
                     borderColor = Colors.green.shade500;
                   } else if (index == _selectedOption) {
-                    bgColor = Colors.red.shade400; // Обрана неправильна - червона
+                    bgColor = Colors.red.shade400;
                     textColor = Colors.white;
                     borderColor = Colors.red.shade400;
                   }
@@ -362,22 +449,24 @@ class _QuizScreenState extends State<QuizScreen> {
               
               const SizedBox(height: 20),
               
-              // Кнопка Далі
               if (_answered)
                 SizedBox(
                   height: 55,
                   child: ElevatedButton(
-                    onPressed: _nextQuestion,
+                    onPressed: _handleNextButton,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: isLastQuestion ? Colors.green : Colors.blueAccent,
                       foregroundColor: Colors.white,
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text("Далі", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      isLastQuestion ? "Завершити тест" : "Далі", 
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                    ),
                   ),
                 ),
-              const SizedBox(height: 20), // Відступ знизу для зручного скролу
+              const SizedBox(height: 20),
             ],
           ),
         ),
