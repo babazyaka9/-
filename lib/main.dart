@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math'; // Додано для Random
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -96,6 +97,7 @@ class _MenuScreenState extends State<MenuScreen> {
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
+                // Почати заново
                 _startQuiz(context, mode: 'chunk', start: start, end: end, key: key, resumeData: null);
               },
               child: const Text("Почати заново", style: TextStyle(color: Colors.red)),
@@ -103,6 +105,7 @@ class _MenuScreenState extends State<MenuScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx);
+                // Продовжити
                 _startQuiz(context, mode: 'chunk', start: start, end: end, key: key, resumeData: activeSession);
               },
               child: const Text("Продовжити"),
@@ -274,30 +277,64 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _answered = false;
   int? _selectedOption;
 
+  // ТУТ БУДЕ ПЕРЕМІШАНЕ ПИТАННЯ
+  late Map<String, dynamic> _currentShuffledQuestion;
+
   @override
   void initState() {
     super.initState();
+    // 1. Формуємо список питань
+    List<dynamic> rawQuestions = [];
     if (widget.mode == 'chunk') {
-      _quizQuestions = widget.allQuestions.sublist(widget.start, widget.end);
+      rawQuestions = widget.allQuestions.sublist(widget.start, widget.end);
     } else {
-      _quizQuestions = widget.allQuestions.where((q) => widget.wrongIds!.contains(q['id'])).toList();
+      rawQuestions = widget.allQuestions.where((q) => widget.wrongIds!.contains(q['id'])).toList();
     }
+    
+    // 2. Копіюємо список, щоб не псувати оригінал
+    _quizQuestions = List.from(rawQuestions);
 
+    // 3. Відновлення стану
     if (widget.resumeData != null) {
       _currentIndex = widget.resumeData['index'] ?? 0;
       _score = widget.resumeData['score'] ?? 0;
       _newWrongs = List<int>.from(widget.resumeData['new_wrongs'] ?? []);
       _correctIds = List<int>.from(widget.resumeData['correct_ids'] ?? []);
     }
+
+    // 4. Готуємо перше питання (перемішуємо його)
+    if (_quizQuestions.isNotEmpty) {
+      _currentShuffledQuestion = _shuffleQuestion(_quizQuestions[_currentIndex]);
+    }
+  }
+
+  // --- ЛОГІКА ПЕРЕМІШУВАННЯ ---
+  Map<String, dynamic> _shuffleQuestion(dynamic originalQ) {
+    List<String> opts = List<String>.from(originalQ['opts']);
+    int correctIndex = originalQ['c'];
+    String correctText = opts[correctIndex];
+
+    // Перемішуємо
+    opts.shuffle();
+
+    // Знаходимо, де тепер правильна відповідь
+    int newCorrectIndex = opts.indexOf(correctText);
+
+    return {
+      "id": originalQ["id"],
+      "q": originalQ["q"],
+      "opts": opts,
+      "c": newCorrectIndex
+    };
   }
 
   void _checkAnswer(int index) {
     setState(() {
       _selectedOption = index;
       _answered = true;
-      final q = _quizQuestions[_currentIndex];
-      final correct = q['c'];
-      final id = q['id'];
+      
+      final correct = _currentShuffledQuestion['c'];
+      final id = _currentShuffledQuestion['id'];
 
       if (index == correct) {
         _score++;
@@ -320,6 +357,8 @@ class _QuizScreenState extends State<QuizScreen> {
         _currentIndex = nextIndex;
         _answered = false;
         _selectedOption = null;
+        // Перемішуємо наступне питання
+        _currentShuffledQuestion = _shuffleQuestion(_quizQuestions[_currentIndex]);
       });
     } else {
       _finishQuiz();
@@ -385,7 +424,8 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget build(BuildContext context) {
     if (_quizQuestions.isEmpty) return const Scaffold(body: Center(child: Text("Помилок немає! 🎉")));
 
-    final q = _quizQuestions[_currentIndex];
+    // Використовуємо вже перемішане питання
+    final q = _currentShuffledQuestion;
     final bool isLastQuestion = _currentIndex == _quizQuestions.length - 1;
 
     return Scaffold(
